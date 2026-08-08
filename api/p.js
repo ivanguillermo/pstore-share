@@ -1,12 +1,8 @@
 export default async function handler(req, res) {
   const { id } = req.query;
 
-  // OPCIÓN 1: URL de exportación CSV de tu Google Sheet pública (Recomendada)
-  // Reemplaza TU_SPREADSHEET_ID por el ID de tu hoja de Google Sheets
+  // Reemplaza TU_SPREADSHEET_ID con el ID real de tu Google Sheet
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
-
-  // OPCIÓN 2 (Alternativa): Si tienes tu CSV subido a tu repo de GitHub Pages
-  // const SHEET_CSV_URL = "https://ivanguillermo.github.io/pstore/productos.csv";
 
   const targetUrl = id 
     ? `https://ivanguillermo.github.io/pstore/#${id}`
@@ -25,7 +21,7 @@ export default async function handler(req, res) {
     const response = await fetch(SHEET_CSV_URL);
     if (response.ok) {
       const csvText = await response.text();
-      const filas = parseCSV(csvText);
+      const filas = parseCSVSimple(csvText);
 
       if (filas.length > 1) {
         const encabezados = filas[0].map(h => h.trim().toLowerCase());
@@ -108,20 +104,26 @@ export default async function handler(req, res) {
   return res.status(200).send(html);
 }
 
-// Función auxiliar para parsear CSV respetando comillas y comas internas
-function parseCSV(text) {
-  const lines = text.split(/\r\n|\n/);
+// Parser ligero y rápido para CSV
+function parseCSVSimple(text) {
+  const lines = text.split(/\r?\n/);
   return lines.map(line => {
-    const regex = /(?:,|\n|^)("(?:(?:"")*|[^"]*)*"|[^",\n]*)/g;
     const row = [];
-    let match;
-    while ((match = regex.exec(line)) !== null) {
-      let val = match[1];
-      if (val.startsWith('"') && val.endsWith('"')) {
-        val = val.substring(1, val.length - 1).replace(/""/g, '"');
+    let insideQuotes = false;
+    let entry = '';
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        insideQuotes = !insideQuotes;
+      } else if (char === ',' && !insideQuotes) {
+        row.push(entry.trim());
+        entry = '';
+      } else {
+        entry += char;
       }
-      row.push(val);
     }
+    row.push(entry.trim());
     return row;
   });
 }
