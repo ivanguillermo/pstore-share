@@ -1,7 +1,6 @@
 export default async function handler(req, res) {
   const { id } = req.query;
 
-  // URL pública donde obtienes tus datos de productos
   const SHEETS_JSON_URL = "https://script.google.com/macros/s/AKfycby13DdZgzysrZd04zHKW3F-Qw9TrIHKlvsa0akmjhbJnOhXTfYErP8JKGARrdOnvpSbZQ/exec";
 
   if (!id) {
@@ -12,20 +11,36 @@ export default async function handler(req, res) {
     const response = await fetch(SHEETS_JSON_URL);
     const productos = await response.json();
 
-    const producto = productos.find(p => p.id === id || p.nombre_id === id);
+    // Normalizamos el ID recibido (quitamos espacios y pasamos a mayúsculas: "dk-z-0007 " -> "DK-Z-0007")
+    const idBuscado = String(id).trim().toUpperCase();
+
+    // Búsqueda tolerante a variaciones de nombres de columnas y casing
+    const producto = productos.find(p => {
+      const pId = String(p.id || p.ID || p.codigo || p.nombre_id || "").trim().toUpperCase();
+      return pId === idBuscado;
+    });
 
     if (!producto) {
       return res.redirect(302, "https://ivanguillermo.github.io/pstore/");
     }
 
-    const titulo = `${producto.nombre} | Pstore ($${parseFloat(producto.precio).toFixed(2)})`;
-    const descripcion = producto.descripcion || "Encuentra este y más productos en Pstore.";
+    // Tolerancia por si la columna de nombre viene con otro encabezado
+    const nombre = producto.nombre || producto.producto || producto.Nombre || "Producto Pstore";
+    const precio = producto.precio ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
+    const titulo = `${nombre} | Pstore ${precio}`.trim();
+    const descripcion = producto.descripcion || producto.Descripcion || "Encuentra este y más productos en Pstore.";
     
-    // URL optimizada para miniatura de Google Drive
-    const imagenUrl = `https://lh3.googleusercontent.com/d/${producto.id_drive_imagen}=w600-h600-no`;
+    // Tu lógica de imagen intacta (si no trae imagen, usa el logo por defecto)
+    let imagenUrl = producto.id_drive_imagen || producto.imagen || "https://ivanguillermo.github.io/pstore/assets/pstore.jpg";
+    
+    // Si viene solo el ID de Drive, le anteponemos el formato de Google Photos/Drive
+    if (!imagenUrl.startsWith("http")) {
+      imagenUrl = `https://lh3.googleusercontent.com/d/${imagenUrl}=w600-h600-no`;
+    }
+
     const targetUrl = `https://ivanguillermo.github.io/pstore/#${id}`;
 
-    // Detectar si la petición viene de un Bot/Scraper de redes sociales
+    // Detectar Scrapers / Bots para no redirigirlos de golpe
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     const esBot = /facebookexternalhit|whatsapp|twitterbot|telegrambot|bingbot|googlebot/i.test(userAgent);
 
