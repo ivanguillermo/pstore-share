@@ -22,54 +22,37 @@ export default async function handler(req, res) {
       const productos = await response.json();
       const idBuscado = String(id || '').trim().toUpperCase();
 
-      // Busca coincidencia en CUALQUIER propiedad del objeto que contenga el ID buscado
+      // Búsqueda usando exactamente la columna ID de tu CSV
       producto = productos.find(p => {
-        return Object.values(p).some(val => String(val).trim().toUpperCase() === idBuscado);
+        const pId = String(p.ID || p.id || "").trim().toUpperCase();
+        return pId === idBuscado;
       });
     }
   } catch (error) {
-    console.error("Error al obtener productos:", error);
+    console.error("Error al consultar productos:", error);
   }
 
   if (!esBot && !producto) {
     return res.redirect(302, targetUrl);
   }
 
-  // Extracción flexible de campos
-  let nombre = "Producto Pstore";
-  let precio = "";
-  let idDrive = "";
-  let descripcion = "Explora nuestro catálogo en Pstore.";
-
+  // Mapeo exacto según los encabezados de tu Sheet / CSV
+  const nombre = producto ? (producto.nombre || "Producto Pstore") : "Pstore | Tu Tienda Online";
+  const precio = (producto && producto.precio) ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
+  const titulo = producto ? `${nombre} ${precio} | Pstore`.trim() : "Pstore | Tu Tienda Online";
+  const descripcion = producto ? (producto.descripcion || "Explora nuestro catálogo en Pstore.") : "Explora nuestro catálogo en Pstore.";
+  
+  // Imagen: toma 'imagen', 'imagen_link', 'imagen_drive' o usa el logo por defecto
+  let imagenUrl = "https://ivanguillermo.github.io/pstore/assets/pstore.jpg";
   if (producto) {
-    // Buscar nombre
-    nombre = producto.nombre || producto.producto || producto.Nombre || producto.title || Object.values(producto)[1] || "Producto Pstore";
-    
-    // Buscar precio
-    const precioVal = producto.precio || producto.Precio || producto.price;
-    if (precioVal) {
-      precio = `$${parseFloat(precioVal).toFixed(2)}`;
-    }
-
-    // Buscar descripción
-    descripcion = producto.descripcion || producto.Descripcion || producto.detalle || descripcion;
-
-    // Extraer ID de Drive de cualquier campo que contenga una URL o un ID de imagen
-    const posibleImagen = producto.id_drive_imagen || producto.imagen || producto.imagen_url || producto.id_drive || producto.url || "";
-    const stringImg = String(posibleImagen);
-    
-    const match = stringImg.match(/\/d\/([a-zA-Z0-9_-]+)/) || stringImg.match(/id=([a-zA-Z0-9_-]+)/);
-    if (match && match[1]) {
-      idDrive = match[1];
-    } else if (stringImg && !stringImg.startsWith("http")) {
-      idDrive = stringImg.split(",")[0].trim();
+    const rawImg = producto.imagen || producto.imagen_link || producto.imagen_drive;
+    if (rawImg && rawImg.startsWith("http")) {
+      imagenUrl = rawImg;
+    } else if (rawImg) {
+      // Si viene solo el ID de Google Drive
+      imagenUrl = `https://lh3.googleusercontent.com/d/${rawImg}=w600-h600-no`;
     }
   }
-
-  const titulo = producto ? `${nombre} ${precio} | Pstore`.trim() : "Pstore | Tu Tienda Online";
-  const imagenUrl = idDrive 
-    ? `https://lh3.googleusercontent.com/d/${idDrive}=w600-h600-no` 
-    : "https://ivanguillermo.github.io/pstore/assets/pstore.jpg";
 
   const html = `<!DOCTYPE html>
 <html lang="es">
