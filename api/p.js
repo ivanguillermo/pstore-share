@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   const { id } = req.query; // Captura el ID del producto (ej: ART-001)
 
   // URL pública de la API/Google Sheets o tu JSON de productos
-  const SHEETS_JSON_URL = "URL_DE_TU_GOOGLE_SHEET_EN_JSON_O_PSTORE_JSON";
+  const SHEETS_JSON_URL = "https://script.google.com/macros/s/AKfycby13DdZgzysrZd04zHKW3F-Qw9TrIHKlvsa0akmjhbJnOhXTfYErP8JKGARrdOnvpSbZQ/exec";
 
   if (!id) {
     return res.redirect("https://ivanguillermo.github.io/pstore/");
