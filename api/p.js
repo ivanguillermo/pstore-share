@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
   const { id } = req.query;
 
-  // Reemplaza TU_SPREADSHEET_ID con el ID real de tu Google Sheet
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
+  // URL de exportación CSV de tu Google Sheet
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/TU_SPREADSHEET_ID/export?format=csv";
 
   const targetUrl = id 
     ? `https://ivanguillermo.github.io/pstore/#${id}`
@@ -21,9 +21,10 @@ export default async function handler(req, res) {
     const response = await fetch(SHEET_CSV_URL);
     if (response.ok) {
       const csvText = await response.text();
-      const filas = parseCSVSimple(csvText);
+      const filas = parseCSV(csvText);
 
       if (filas.length > 1) {
+        // Mapear posiciones de columnas usando la primera fila (encabezados)
         const encabezados = filas[0].map(h => h.trim().toLowerCase());
         const idIndex = encabezados.findIndex(h => h === 'id');
         const nombreIndex = encabezados.findIndex(h => h === 'nombre');
@@ -33,18 +34,22 @@ export default async function handler(req, res) {
 
         const idBuscado = String(id || '').trim().toUpperCase();
 
+        // Recorrer las filas de datos
         for (let i = 1; i < filas.length; i++) {
           const fila = filas[i];
+          if (!fila || fila.length <= idIndex) continue;
+
           const filaId = String(fila[idIndex] || '').trim().toUpperCase();
 
+          // Comparación exacta de ID
           if (filaId === idBuscado) {
             producto = {
-              nombre: fila[nombreIndex] || "Producto Pstore",
-              precio: fila[precioIndex] || "",
-              descripcion: fila[descIndex] || "Explora nuestro catálogo en Pstore.",
-              imagen: fila[imgIndex] || ""
+              nombre: fila[nombreIndex] ? fila[nombreIndex].trim() : "Producto Pstore",
+              precio: fila[precioIndex] ? fila[precioIndex].trim() : "",
+              descripcion: fila[descIndex] ? fila[descIndex].trim() : "Explora nuestro catálogo en Pstore.",
+              imagen: fila[imgIndex] ? fila[imgIndex].trim() : ""
             };
-            break;
+            break; // Detener la búsqueda al encontrar el producto exacto
           }
         }
       }
@@ -104,16 +109,20 @@ export default async function handler(req, res) {
   return res.status(200).send(html);
 }
 
-// Parser ligero y rápido para CSV
-function parseCSVSimple(text) {
+// Parser CSV robusto
+function parseCSV(text) {
   const lines = text.split(/\r?\n/);
-  return lines.map(line => {
+  const result = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    
     const row = [];
     let insideQuotes = false;
     let entry = '';
 
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
       if (char === '"') {
         insideQuotes = !insideQuotes;
       } else if (char === ',' && !insideQuotes) {
@@ -124,6 +133,7 @@ function parseCSVSimple(text) {
       }
     }
     row.push(entry.trim());
-    return row;
-  });
+    result.push(row);
+  }
+  return result;
 }
