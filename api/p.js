@@ -1,7 +1,12 @@
 export default async function handler(req, res) {
   const { id } = req.query;
 
-  const SHEETS_JSON_URL = "https://script.google.com/macros/s/AKfycby13DdZgzysrZd04zHKW3F-Qw9TrIHKlvsa0akmjhbJnOhXTfYErP8JKGARrdOnvpSbZQ/exec";
+  // OPCIÓN 1: URL de exportación CSV de tu Google Sheet pública (Recomendada)
+  // Reemplaza TU_SPREADSHEET_ID por el ID de tu hoja de Google Sheets
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
+
+  // OPCIÓN 2 (Alternativa): Si tienes tu CSV subido a tu repo de GitHub Pages
+  // const SHEET_CSV_URL = "https://ivanguillermo.github.io/pstore/productos.csv";
 
   const targetUrl = id 
     ? `https://ivanguillermo.github.io/pstore/#${id}`
@@ -17,39 +22,56 @@ export default async function handler(req, res) {
   let producto = null;
 
   try {
-    const response = await fetch(SHEETS_JSON_URL, { redirect: 'follow' });
+    const response = await fetch(SHEET_CSV_URL);
     if (response.ok) {
-      const productos = await response.json();
-      const idBuscado = String(id || '').trim().toUpperCase();
+      const csvText = await response.text();
+      const filas = parseCSV(csvText);
 
-      // Búsqueda usando exactamente la columna ID de tu CSV
-      producto = productos.find(p => {
-        const pId = String(p.ID || p.id || "").trim().toUpperCase();
-        return pId === idBuscado;
-      });
+      if (filas.length > 1) {
+        const encabezados = filas[0].map(h => h.trim().toLowerCase());
+        const idIndex = encabezados.findIndex(h => h === 'id');
+        const nombreIndex = encabezados.findIndex(h => h === 'nombre');
+        const precioIndex = encabezados.findIndex(h => h === 'precio');
+        const descIndex = encabezados.findIndex(h => h === 'descripcion');
+        const imgIndex = encabezados.findIndex(h => h === 'imagen' || h === 'imagen_link' || h === 'imagen_drive');
+
+        const idBuscado = String(id || '').trim().toUpperCase();
+
+        for (let i = 1; i < filas.length; i++) {
+          const fila = filas[i];
+          const filaId = String(fila[idIndex] || '').trim().toUpperCase();
+
+          if (filaId === idBuscado) {
+            producto = {
+              nombre: fila[nombreIndex] || "Producto Pstore",
+              precio: fila[precioIndex] || "",
+              descripcion: fila[descIndex] || "Explora nuestro catálogo en Pstore.",
+              imagen: fila[imgIndex] || ""
+            };
+            break;
+          }
+        }
+      }
     }
   } catch (error) {
-    console.error("Error al consultar productos:", error);
+    console.error("Error leyendo CSV:", error);
   }
 
   if (!esBot && !producto) {
     return res.redirect(302, targetUrl);
   }
 
-  // Mapeo exacto según los encabezados de tu Sheet / CSV
-  const nombre = producto ? (producto.nombre || "Producto Pstore") : "Pstore | Tu Tienda Online";
+  const nombre = producto ? producto.nombre : "Pstore | Tu Tienda Online";
   const precio = (producto && producto.precio) ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
   const titulo = producto ? `${nombre} ${precio} | Pstore`.trim() : "Pstore | Tu Tienda Online";
-  const descripcion = producto ? (producto.descripcion || "Explora nuestro catálogo en Pstore.") : "Explora nuestro catálogo en Pstore.";
+  const descripcion = producto ? producto.descripcion : "Explora nuestro catálogo en Pstore.";
   
-  // Imagen: toma 'imagen', 'imagen_link', 'imagen_drive' o usa el logo por defecto
   let imagenUrl = "https://ivanguillermo.github.io/pstore/assets/pstore.jpg";
-  if (producto) {
-    const rawImg = producto.imagen || producto.imagen_link || producto.imagen_drive;
-    if (rawImg && rawImg.startsWith("http")) {
+  if (producto && producto.imagen) {
+    const rawImg = producto.imagen.trim();
+    if (rawImg.startsWith("http")) {
       imagenUrl = rawImg;
-    } else if (rawImg) {
-      // Si viene solo el ID de Google Drive
+    } else {
       imagenUrl = `https://lh3.googleusercontent.com/d/${rawImg}=w600-h600-no`;
     }
   }
@@ -84,4 +106,22 @@ export default async function handler(req, res) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(html);
+}
+
+// Función auxiliar para parsear CSV respetando comillas y comas internas
+function parseCSV(text) {
+  const lines = text.split(/\r\n|\n/);
+  return lines.map(line => {
+    const regex = /(?:,|\n|^)("(?:(?:"")*|[^"]*)*"|[^",\n]*)/g;
+    const row = [];
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      let val = match[1];
+      if (val.startsWith('"') && val.endsWith('"')) {
+        val = val.substring(1, val.length - 1).replace(/""/g, '"');
+      }
+      row.push(val);
+    }
+    return row;
+  });
 }
