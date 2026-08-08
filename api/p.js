@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   const { id } = req.query;
 
   // URL de exportación CSV de tu Google Sheet
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/TU_SPREADSHEET_ID/export?format=csv";
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
 
   const targetUrl = id 
     ? `https://ivanguillermo.github.io/pstore/#${id}`
