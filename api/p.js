@@ -5,8 +5,8 @@ export default async function handler(req, res) {
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
 
   const targetUrl = id 
-    ? `https://ivanguillermo.github.io/pstore/#${id}`
-    : "https://ivanguillermo.github.io/pstore/";
+    ? `https://pstore.com.ve/#${id}`
+    : "https://pstore.com.ve/";
 
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
   const esBot = /facebookexternalhit|whatsapp|twitterbot|telegrambot|bingbot|googlebot/i.test(userAgent);
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   const titulo = producto ? `${nombre} ${precio} | Pstore`.trim() : "Pstore | Tu Tienda Online";
   const descripcion = producto ? producto.descripcion : "Explora nuestro catálogo en Pstore.";
   
-  let imagenUrl = "https://ivanguillermo.github.io/pstore/assets/pstore.jpg";
+  let imagenUrl = "https://pstore.com.ve/assets/pstore.jpg";
   if (producto && producto.imagen) {
     const rawImg = producto.imagen.trim();
     if (rawImg.startsWith("http")) {
