@@ -1,7 +1,12 @@
 export default async function handler(req, res) {
-  const { id } = req.query;
+  let { id } = req.query;
 
-  // URL de exportación CSV de tu Google Sheet (Asegúrate de que incluya el gid de la pestaña de productos si aplica)
+  // Limpieza total del ID por si viene con #, %23 o espacios
+  if (id) {
+    id = decodeURIComponent(id).replace('#', '').trim().toUpperCase();
+  }
+
+  // URL de exportación CSV de tu Google Sheet
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
 
   const targetUrl = id 
@@ -9,7 +14,7 @@ export default async function handler(req, res) {
     : "https://pstore.com.ve/";
 
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-  const esBot = /facebookexternalhit|whatsapp|twitterbot|telegrambot|bingbot|googlebot/i.test(userAgent);
+  const esBot = /facebookexternalhit|whatsapp|twitterbot|telegrambot|bingbot|googlebot|meta-externalagent/i.test(userAgent);
 
   if (!id && !esBot) {
     return res.redirect(302, targetUrl);
@@ -24,10 +29,8 @@ export default async function handler(req, res) {
       const filas = parseCSV(csvText);
 
       if (filas.length > 1) {
-        // Mapear posiciones de columnas limpiando espacios y pasándolas a minúsculas para coincidencia exacta
+        // Mapear posiciones de columnas usando la primera fila (encabezados)
         const encabezados = filas[0].map(h => h.trim().toLowerCase());
-        
-        // Mapeo adaptado a tus columnas exactas: ID, nombre, precio, descripcion, imagen, imagen_link
         const idIndex = encabezados.findIndex(h => h === 'id');
         const nombreIndex = encabezados.findIndex(h => h === 'nombre');
         const precioIndex = encabezados.findIndex(h => h === 'precio');
@@ -36,8 +39,6 @@ export default async function handler(req, res) {
         const imgIndex = encabezados.findIndex(h => h === 'imagen');
         const imgDriveIndex = encabezados.findIndex(h => h === 'imagen_drive');
 
-        const idBuscado = String(id || '').trim().toUpperCase();
-
         // Recorrer las filas de datos
         for (let i = 1; i < filas.length; i++) {
           const fila = filas[i];
@@ -45,9 +46,8 @@ export default async function handler(req, res) {
 
           const filaId = String(fila[idIndex] || '').trim().toUpperCase();
 
-          // Comparación exacta de ID
-          if (filaId === idBuscado) {
-            // Seleccionar la mejor opción de imagen disponible en orden de prioridad
+          // Comparación exacta de ID ya limpio
+          if (filaId === id) {
             let imgSeleccionada = '';
             if (imgLinkIndex !== -1 && fila[imgLinkIndex]) imgSeleccionada = fila[imgLinkIndex];
             else if (imgIndex !== -1 && fila[imgIndex]) imgSeleccionada = fila[imgIndex];
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
               descripcion: (descIndex !== -1 && fila[descIndex]) ? fila[descIndex].trim() : "Explora nuestro catálogo en Pstore.",
               imagen: imgSeleccionada.trim()
             };
-            break; // Detener la búsqueda al encontrar el producto exacto
+            break; 
           }
         }
       }
