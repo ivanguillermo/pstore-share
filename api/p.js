@@ -1,24 +1,17 @@
 export default async function handler(req, res) {
   let { id } = req.query;
 
-  // Limpieza total del ID por si viene con #, %23 o espacios
+  // 1. Limpieza rigurosa del ID (elimina #, espacios y codificaciones web)
   if (id) {
     id = decodeURIComponent(id).replace('#', '').trim().toUpperCase();
   }
 
-  // URL de exportación CSV de tu Google Sheet
+  // URL de exportación CSV de tu Google Sheet (Asegúrate de que sea tu enlace público CSV correcto)
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
 
   const targetUrl = id 
     ? `https://pstore.com.ve/#${id}`
     : "https://pstore.com.ve/";
-
-  const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-  const esBot = /facebookexternalhit|whatsapp|twitterbot|telegrambot|bingbot|googlebot|meta-externalagent/i.test(userAgent);
-
-  if (!id && !esBot) {
-    return res.redirect(302, targetUrl);
-  }
 
   let producto = null;
 
@@ -29,7 +22,6 @@ export default async function handler(req, res) {
       const filas = parseCSV(csvText);
 
       if (filas.length > 1) {
-        // Mapear posiciones de columnas usando la primera fila (encabezados)
         const encabezados = filas[0].map(h => h.trim().toLowerCase());
         const idIndex = encabezados.findIndex(h => h === 'id');
         const nombreIndex = encabezados.findIndex(h => h === 'nombre');
@@ -39,54 +31,54 @@ export default async function handler(req, res) {
         const imgIndex = encabezados.findIndex(h => h === 'imagen');
         const imgDriveIndex = encabezados.findIndex(h => h === 'imagen_drive');
 
-        // Recorrer las filas de datos
         for (let i = 1; i < filas.length; i++) {
           const fila = filas[i];
           if (!fila || idIndex === -1 || fila.length <= idIndex) continue;
 
           const filaId = String(fila[idIndex] || '').trim().toUpperCase();
 
-          // Comparación exacta de ID ya limpio
           if (filaId === id) {
-            let imgSeleccionada = '';
-            if (imgLinkIndex !== -1 && fila[imgLinkIndex]) imgSeleccionada = fila[imgLinkIndex];
-            else if (imgIndex !== -1 && fila[imgIndex]) imgSeleccionada = fila[imgIndex];
-            else if (imgDriveIndex !== -1 && fila[imgDriveIndex]) imgSeleccionada = fila[imgDriveIndex];
+            let imgCruda = '';
+            if (imgLinkIndex !== -1 && fila[imgLinkIndex]) imgCruda = fila[imgLinkIndex];
+            else if (imgIndex !== -1 && fila[imgIndex]) imgCruda = fila[imgIndex];
+            else if (imgDriveIndex !== -1 && fila[imgDriveIndex]) imgCruda = fila[imgDriveIndex];
 
             producto = {
               nombre: (nombreIndex !== -1 && fila[nombreIndex]) ? fila[nombreIndex].trim() : "Producto Pstore",
               precio: (precioIndex !== -1 && fila[precioIndex]) ? fila[precioIndex].trim() : "",
-              descripcion: (descIndex !== -1 && fila[descIndex]) ? fila[descIndex].trim() : "Explora nuestro catálogo en Pstore.",
-              imagen: imgSeleccionada.trim()
+              descripcion: (descIndex !== -1 && fila[descIndex]) ? fila[descIndex].trim() : "Explora nuestro catálogo exclusivo en Pstore.",
+              imagen: imgCruda.trim()
             };
-            break; 
+            break;
           }
         }
       }
     }
   } catch (error) {
-    console.error("Error leyendo CSV:", error);
+    console.error("Error leyendo el CSV en Vercel:", error);
   }
 
-  if (!esBot && !producto) {
-    return res.redirect(302, targetUrl);
-  }
-
+  // Valores por defecto si no encuentra el producto
   const nombre = producto ? producto.nombre : "Pstore | Tu Tienda Online";
-  const precio = (producto && producto.precio) ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
-  const titulo = producto ? `${nombre} ${precio} | Pstore`.trim() : "Pstore | Tu Tienda Online";
+  const precioStr = (producto && producto.precio) ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
+  const titulo = producto ? `${nombre} ${precioStr} | Pstore`.trim() : "Pstore | Tu Tienda Online";
   const descripcion = producto ? producto.descripcion : "Explora nuestro catálogo en Pstore.";
   
+  // Procesamiento blindado de la imagen para Google Drive o URLs externas
   let imagenUrl = "https://pstore.com.ve/assets/pstore.jpg";
   if (producto && producto.imagen) {
-    const rawImg = producto.imagen.trim();
-    if (rawImg.startsWith("http")) {
+    const rawImg = producto.imagen;
+    const matchDrive = rawImg.match(/\/d\/([a-zA-Z0-9_-]+)/) || rawImg.match(/id=([a-zA-Z0-9_-]+)/);
+    
+    if (matchDrive && matchDrive[1]) {
+      // Formato directo optimizado para bots de Meta
+      imagenUrl = `https://lh3.googleusercontent.com/d/${matchDrive[1]}=w800-h800-rw`;
+    } else if (rawImg.startsWith("http")) {
       imagenUrl = rawImg;
-    } else {
-      imagenUrl = `https://lh3.googleusercontent.com/d/${rawImg}=w600-h600-no`;
     }
   }
 
+  // HTML optimizado con etiquetas OpenGraph estrictas para WhatsApp
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -99,8 +91,10 @@ export default async function handler(req, res) {
   <meta property="og:title" content="${titulo}">
   <meta property="og:description" content="${descripcion}">
   <meta property="og:image" content="${imagenUrl}">
-  <meta property="og:image:width" content="600">
-  <meta property="og:image:height" content="600">
+  <meta property="og:image:secure_url" content="${imagenUrl}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="800">
+  <meta property="og:image:height" content="800">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
@@ -108,10 +102,13 @@ export default async function handler(req, res) {
   <meta name="twitter:description" content="${descripcion}">
   <meta name="twitter:image" content="${imagenUrl}">
 
-  ${!esBot ? `<script>window.location.replace("${targetUrl}");</script>` : ''}
+  <!-- Redirección inmediata para usuarios reales -->
+  <script>
+    window.location.replace("${targetUrl}");
+  </script>
 </head>
 <body>
-  <p>Cargando producto en Pstore...</p>
+  <p>Redirigiendo a Pstore...</p>
 </body>
 </html>`;
 
