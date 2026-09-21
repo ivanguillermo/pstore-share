@@ -1,12 +1,11 @@
 export default async function handler(req, res) {
   let { id } = req.query;
 
-  // 1. Limpieza rigurosa del ID (elimina #, espacios y codificaciones web)
   if (id) {
     id = decodeURIComponent(id).replace('#', '').trim().toUpperCase();
   }
 
-  // URL de exportación CSV de tu Google Sheet (Asegúrate de que sea tu enlace público CSV correcto)
+  // IMPORTANTE: Asegúrate de que este enlace CSV sea exactamente el de la pestaña de productos
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
 
   const targetUrl = id 
@@ -31,6 +30,9 @@ export default async function handler(req, res) {
         const imgIndex = encabezados.findIndex(h => h === 'imagen');
         const imgDriveIndex = encabezados.findIndex(h => h === 'imagen_drive');
 
+        console.log("Buscando ID:", id);
+        console.log("Encabezados encontrados:", encabezados);
+
         for (let i = 1; i < filas.length; i++) {
           const fila = filas[i];
           if (!fila || idIndex === -1 || fila.length <= idIndex) continue;
@@ -46,7 +48,7 @@ export default async function handler(req, res) {
             producto = {
               nombre: (nombreIndex !== -1 && fila[nombreIndex]) ? fila[nombreIndex].trim() : "Producto Pstore",
               precio: (precioIndex !== -1 && fila[precioIndex]) ? fila[precioIndex].trim() : "",
-              descripcion: (descIndex !== -1 && fila[descIndex]) ? fila[descIndex].trim() : "Explora nuestro catálogo exclusivo en Pstore.",
+              descripcion: (descIndex !== -1 && fila[descIndex]) ? fila[descIndex].trim() : "Explora nuestro catálogo en Pstore.",
               imagen: imgCruda.trim()
             };
             break;
@@ -55,37 +57,31 @@ export default async function handler(req, res) {
       }
     }
   } catch (error) {
-    console.error("Error leyendo el CSV en Vercel:", error);
+    console.error("Error leyendo CSV:", error);
   }
 
-  // Valores por defecto si no encuentra el producto
   const nombre = producto ? producto.nombre : "Pstore | Tu Tienda Online";
   const precioStr = (producto && producto.precio) ? `$${parseFloat(producto.precio).toFixed(2)}` : "";
   const titulo = producto ? `${nombre} ${precioStr} | Pstore`.trim() : "Pstore | Tu Tienda Online";
   const descripcion = producto ? producto.descripcion : "Explora nuestro catálogo en Pstore.";
   
-  // Procesamiento blindado de la imagen para Google Drive o URLs externas
   let imagenUrl = "https://pstore.com.ve/assets/pstore.jpg";
   if (producto && producto.imagen) {
     const rawImg = producto.imagen;
     const matchDrive = rawImg.match(/\/d\/([a-zA-Z0-9_-]+)/) || rawImg.match(/id=([a-zA-Z0-9_-]+)/);
     
     if (matchDrive && matchDrive[1]) {
-      // Formato directo optimizado para bots de Meta
       imagenUrl = `https://lh3.googleusercontent.com/d/${matchDrive[1]}=w800-h800-rw`;
     } else if (rawImg.startsWith("http")) {
       imagenUrl = rawImg;
     }
   }
 
-  // HTML optimizado con etiquetas OpenGraph estrictas para WhatsApp
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>${titulo}</title>
-  
-  <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="${targetUrl}">
   <meta property="og:title" content="${titulo}">
@@ -95,17 +91,7 @@ export default async function handler(req, res) {
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="800">
   <meta property="og:image:height" content="800">
-
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="${titulo}">
-  <meta name="twitter:description" content="${descripcion}">
-  <meta name="twitter:image" content="${imagenUrl}">
-
-  <!-- Redirección inmediata para usuarios reales -->
-  <script>
-    window.location.replace("${targetUrl}");
-  </script>
+  <script>window.location.replace("${targetUrl}");</script>
 </head>
 <body>
   <p>Redirigiendo a Pstore...</p>
@@ -116,18 +102,15 @@ export default async function handler(req, res) {
   return res.status(200).send(html);
 }
 
-// Parser CSV robusto
 function parseCSV(text) {
   const lines = text.split(/\r?\n/);
   const result = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
-    
     const row = [];
     let insideQuotes = false;
     let entry = '';
-
     for (let j = 0; j < line.length; j++) {
       const char = line[j];
       if (char === '"') {
