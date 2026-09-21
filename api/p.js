@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   // IMPORTANTE: Asegúrate de que este enlace CSV sea exactamente el de la pestaña de productos
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv";
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1Oy7oviUDfuKbSWfTWEO2qLLcRkblcxp8n0uVoQOEPE0/export?format=csv&gid=51076819";
 
   const targetUrl = id 
     ? `https://pstore.com.ve/#${id}`
